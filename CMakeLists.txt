@@ -7,9 +7,7 @@ project (${PROJECT_NAME})
 include_directories ("${PROJECT_SOURCE_DIR}/src")
 
 set (file_list
-	"${PROJECT_SOURCE_DIR}/src/imgui.cpp"
-	"${PROJECT_SOURCE_DIR}/src/imgui_demo.cpp"
-	"${PROJECT_SOURCE_DIR}/src/imgui_draw.cpp")
+	"${PROJECT_SOURCE_DIR}/src/profiler.cpp")
 
 add_definitions(
 	-D_CRT_SECURE_NO_WARNINGS)
@@ -37,5 +35,9 @@ endif (${ANDROID_BUILD})
 
 add_library (${PROJECT_NAME} ${file_list})
 
+target_link_libraries(${PROJECT_NAME}
+	floral
+	helich)
+
 target_include_directories (${PROJECT_NAME} PUBLIC
-	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
+	$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
