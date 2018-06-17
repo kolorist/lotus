@@ -23,6 +23,8 @@ namespace lotus {
 	thread_local capture_info					s_capture_info;
 	floral::mutex								s_init_mtx;
 
+	floral::inplace_mpsc_queue_t<u32, 65536u>	s_events_queue;
+
 	void init_capture_for_this_thread(const u32 i_threadId, const_cstr i_captureName)
 	{
 		floral::lock_guard initGuard(s_init_mtx);
@@ -54,6 +56,8 @@ namespace lotus {
 		if (s_capture_info.last_event)
 			s_capture_info.last_event->next_event = newEvent;
 		s_capture_info.last_event = newEvent;
+
+		s_events_queue.push(1);
 
 		return newEvent;
 	}
