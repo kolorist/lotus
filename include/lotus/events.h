@@ -10,10 +10,10 @@ namespace lotus {
 	// this struct is copyable
 	struct event {
 		u64										time_stamp;
-		u64										clock_tick;
+		f64										duration_ms;
 		u32										depth;
 
-		c8										name[EVENT_NAME_LENGTH];
+		const_cstr								name;
 
 		// linked-list structure
 		event*									next_event;
@@ -23,9 +23,9 @@ namespace lotus {
 	// used by users to store profile events for processing
 	struct unpacked_event {
 		u64										time_stamp;
-		u64										clock_tick;
+		f64										duration_ms;
 		u32										depth;
-		c8										name[EVENT_NAME_LENGTH];
+		const_cstr								name;
 	};
 
 	struct unpacked_capture {

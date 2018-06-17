@@ -12,7 +12,24 @@ namespace lotus {
 
 	void										unpack_capture(const u64 i_captureIdx);
 
-	const event*								begin_event(const_cstr i_name);
-	void										end_event(const event* i_event);
+	event*										allocate_event();
+	void										begin_event(event* i_event, const_cstr i_name);
+	void										end_event(event* i_event);
+
+	// -----------------------------------------
+
+	struct profile_scope {
+		profile_scope(event* i_event, const_cstr i_name);
+		~profile_scope();
+
+		event*									pevent;
+	};
+
+#define PROFILE_SCOPE(ScopeName)														\
+	static lotus::event *lotus_pevent_##ScopeName = lotus::allocate_event();			\
+	lotus::profile_scope lotus_scope_##ScopeName(lotus_pevent_##ScopeName, #ScopeName)
+
+	// -----------------------------------------
+	void										__debug_event_queue_print();
 
 }
