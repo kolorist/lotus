@@ -12,11 +12,9 @@ namespace lotus {
 		u64										time_stamp;
 		f64										duration_ms;
 		u32										depth;
-
 		const_cstr								name;
 
-		// linked-list structure
-		event*									next_event;
+		sidx									widx;
 	};
 
 	// this struct is copyable
@@ -26,6 +24,8 @@ namespace lotus {
 		f64										duration_ms;
 		u32										depth;
 		const_cstr								name;
+
+		bool									ready;
 	};
 
 	struct unpacked_capture {
