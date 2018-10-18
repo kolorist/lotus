@@ -1,7 +1,9 @@
 #include "lotus/profiler.h"
 
 #include <thread/mutex.h>
+#if defined(PLATFORM_WINDOWS)
 #include <Windows.h>
+#endif
 
 #include "lotus/memory.h"
 
@@ -31,10 +33,14 @@ namespace detail {
 		eventBuffer.data = e_main_allocator.allocate_array<unpacked_event>(EVENTS_CAP);
 		eventBuffer.ridx = 0;
 		eventBuffer.widx = 0;
-
+		
+#if defined(PLATFORM_WINDOWS)
 		LARGE_INTEGER freq;
 		QueryPerformanceFrequency(&freq);
 		detail::s_capture_info.thread_frequency = freq.QuadPart;
+#else
+		detail::s_capture_info.thread_frequency = 0;
+#endif
 	}
 
 	event* allocate_event() {
@@ -60,12 +66,14 @@ namespace detail {
 	{
 		sidx widx = _reserve_unpacked_event();
 		if (widx >= 0) {
+			detail::s_capture_info.current_depth++;
+#if defined(PLATFORM_WINDOWS)
 			LARGE_INTEGER tp;
 			QueryPerformanceCounter(&tp);
-
-			detail::s_capture_info.current_depth++;
-
 			i_event->time_stamp = tp.QuadPart;
+#else
+			i_event->time_stamp = 0;
+#endif
 			i_event->depth = detail::s_capture_info.current_depth;
 			i_event->name = i_name;
 			i_event->widx = widx;
@@ -75,10 +83,13 @@ namespace detail {
 	void end_event(event* i_event)
 	{
 		if (i_event->widx >= 0) {
+#if defined(PLATFORM_WINDOWS)			
 			LARGE_INTEGER tp;
 			QueryPerformanceCounter(&tp);
-
 			i_event->duration_ms = (f64)(tp.QuadPart - i_event->time_stamp) * 1000 / (f64)detail::s_capture_info.thread_frequency;
+#else
+			i_event->duration_ms = 0;
+#endif
 			detail::s_capture_info.current_depth--;
 
 			detail::unpacked_event_buffer_t& eb = detail::s_unpacked_event_buffers[detail::s_capture_info.event_buffer_idx];
