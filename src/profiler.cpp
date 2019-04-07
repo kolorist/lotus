@@ -1,11 +1,11 @@
 #include "lotus/profiler.h"
 
-#include <thread/mutex.h>
+#include "lotus/memory.h"
+
+#include <floral/thread/mutex.h>
 #if defined(PLATFORM_WINDOWS)
 #include <Windows.h>
 #endif
-
-#include "lotus/memory.h"
 
 namespace lotus {
 
