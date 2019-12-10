@@ -4,7 +4,8 @@ include ("project_configs.cmake")
 
 project (${PROJECT_NAME})
 
-include_directories ("${PROJECT_SOURCE_DIR}/src")
+include_directories ("${PROJECT_SOURCE_DIR}/include")
+include_directories ("${PROJECT_SOURCE_DIR}/third_party")
 
 if (${MSVC_PROJECT})
 	file (GLOB_RECURSE file_list
@@ -57,7 +58,7 @@ target_link_libraries(${PROJECT_NAME}
 
 set (include_dir_list
 	"${CMAKE_CURRENT_SOURCE_DIR}/include"
-	"${CMAKE_CURRENT_SOURCE_DIR}/third_party/hwcpipe")
+	"${CMAKE_CURRENT_SOURCE_DIR}/third_party")
 
 target_include_directories (${PROJECT_NAME} PUBLIC
 	"$<BUILD_INTERFACE:${include_dir_list}>")

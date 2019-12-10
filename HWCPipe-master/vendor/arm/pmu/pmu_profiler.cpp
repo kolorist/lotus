@@ -26,8 +26,6 @@
 
 #include "hwcpipe_log.h"
 
-#include <android/log.h>
-
 namespace hwcpipe
 {
 const std::unordered_map<CpuCounter, uint64_t, CpuCounterHash> pmu_mappings{
@@ -48,7 +46,7 @@ PmuProfiler::PmuProfiler(const CpuCounterSet &enabled_counters) :
 		const auto &pmu_config = pmu_mappings.find(counter);
 		if (pmu_config != pmu_mappings.end())
 		{
-			//try
+			try
 			{
 				// Create a PMU counter with the specified configuration
 				auto pmu_counter_res = pmu_counters_.emplace(counter, pmu_config->second);
@@ -60,17 +58,17 @@ PmuProfiler::PmuProfiler(const CpuCounterSet &enabled_counters) :
 				// PMU counter is created and can retrieve values
 				available_counters_.insert(counter);
 			}
-			//catch (const std::runtime_error &e)
-			//{
+			catch (const std::runtime_error &e)
+			{
 				// PMU counter initialization failed
-				//HWCPIPE_LOG("%s", e.what());
-			//}
+				HWCPIPE_LOG("%s", e.what());
+			}
 		}
 	}
 
 	if (available_counters_.size() == 0)
 	{
-		__android_log_print(ANDROID_LOG_ERROR, "adb-hwcpipe", "PMU counters not available.");
+		throw std::runtime_error("PMU counters not available.");
 	}
 }
 
@@ -93,7 +91,7 @@ const CpuMeasurements &PmuProfiler::sample()
 			continue;
 		}
 
-		//try
+		try
 		{
 			auto value = pmu_counter->second.get_value<long long>();
 
@@ -102,10 +100,10 @@ const CpuMeasurements &PmuProfiler::sample()
 			measurements_[pmu_counter->first]      = value - prev_measurements_[pmu_counter->first].get<long long>();
 			prev_measurements_[pmu_counter->first] = value;
 		}
-		//catch (const std::runtime_error &e)
-		//{
-			//HWCPIPE_LOG("Failed to get value from PMU: %s.", e.what());
-		//}
+		catch (const std::runtime_error &e)
+		{
+			HWCPIPE_LOG("Failed to get value from PMU: %s.", e.what());
+		}
 	}
 
 	return measurements_;

@@ -30,8 +30,6 @@
 #include <sys/ioctl.h>
 #include <linux/version.h>
 
-#include <android/log.h>
-
 PmuCounter::PmuCounter() :
     _perf_config()
 {
@@ -71,15 +69,13 @@ void PmuCounter::open(const perf_event_attr &perf_config)
 
 	if (_fd < 0)
 	{
-		__android_log_print(ANDROID_LOG_ERROR, "adb-hwcpipe", "perf_event_open failed. Counter ID: %s", config_to_str(_perf_config));
-		return;
+		throw std::runtime_error("perf_event_open failed. Counter ID: " + config_to_str(_perf_config));
 	}
 
 	const int result = ioctl(_fd, PERF_EVENT_IOC_ENABLE, 0);
 	if (result == -1)
 	{
-		__android_log_print(ANDROID_LOG_ERROR, "adb-hwcpipe", "Failed to enable PMU counter: %d", errno);
-		return;
+		throw std::runtime_error("Failed to enable PMU counter: " + std::string(strerror(errno)));
 	}
 }
 
@@ -98,14 +94,13 @@ bool PmuCounter::reset()
 
 	if (result == -1)
 	{
-		__android_log_print(ANDROID_LOG_ERROR, "adb-hwcpipe", "Failed to reset PMU counter: %d", errno);
-		return false;
+		throw std::runtime_error("Failed to reset PMU counter: " + std::string(std::strerror(errno)));
 	}
 
 	return result != -1;
 }
 
-const char* PmuCounter::config_to_str(const perf_event_attr &perf_config)
+std::string PmuCounter::config_to_str(const perf_event_attr &perf_config)
 {
 	switch (perf_config.type)
 	{
@@ -171,8 +166,6 @@ const char* PmuCounter::config_to_str(const perf_event_attr &perf_config)
 					return "UNKNOWN SOFTWARE COUNTER";
 			}
 		default:
-			// FIXME: temporal return for compiling
-			return "SHOULD_NOT_GET_HERE";
-			//return perf_config.config;
+			return std::to_string(perf_config.config);
 	}
 }

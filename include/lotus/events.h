@@ -5,34 +5,55 @@
 #include "configs.h"
 #include "memory.h"
 
-namespace lotus {
+namespace lotus
+{
 
-	// this struct is copyable
-	struct event {
-		u64										time_stamp;
-		f64										duration_ms;
-		u32										depth;
-		const_cstr								name;
+struct hardware_counters_t
+{
+	f32											gpu_cycles;
+	f32											fragment_cycles;
+	f32											tiler_cycles;
 
-		sidx									widx;
-	};
+	f32											varying_16_bits;
+	f32											varying_32_bits;
+};
 
-	// this struct is copyable
-	// used by users to store profile events for processing
-	struct unpacked_event {
-		u64										time_stamp;
-		f64										duration_ms;
-		u32										depth;
-		const_cstr								name;
+struct hardware_counters_buffer_t
+{
+	f32*										gpu_cycles;
+	f32*										fragment_cycles;
+	f32*										tiler_cycles;
 
-		bool									ready;
-	};
+	f32*										varying_16_bits;
+	f32*										varying_32_bits;
+};
 
-	struct unpacked_capture {
-		u32										thread_id;
-		c8										name[CAPTURE_NAME_LENGTH];
+// this struct is copyable
+struct event {
+	u64										time_stamp;
+	f64										duration_ms;
+	u32										depth;
+	const_cstr								name;
 
-		floral::inplace_array<unpacked_event, SAVED_EVENTS_COUNT>	events;
-	};
+	sidx									widx;
+};
+
+// this struct is copyable
+// used by users to store profile events for processing
+struct unpacked_event {
+	u64										time_stamp;
+	f64										duration_ms;
+	u32										depth;
+	const_cstr								name;
+
+	bool									ready;
+};
+
+struct unpacked_capture {
+	u32										thread_id;
+	c8										name[CAPTURE_NAME_LENGTH];
+
+	floral::inplace_array<unpacked_event, SAVED_EVENTS_COUNT>	events;
+};
 
 }

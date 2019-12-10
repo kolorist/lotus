@@ -33,8 +33,6 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#include <android/log.h>
-
 #include "hwcpipe_log.h"
 
 /** Class provides access to CPU hardware counters. */
@@ -83,7 +81,7 @@ class PmuCounter
 	bool reset();
 
 	/** Print counter config ID. */
-	const char* config_to_str(const perf_event_attr &perf_config);
+	std::string config_to_str(const perf_event_attr &perf_config);
 
   private:
 	perf_event_attr _perf_config;
@@ -98,7 +96,7 @@ T PmuCounter::get_value() const
 
 	if (result == -1)
 	{
-		__android_log_print(ANDROID_LOG_ERROR, "adb-hwcpipe", "Can't get PMU counter value: %d", errno);
+		throw std::runtime_error("Can't get PMU counter value: " + std::string(std::strerror(errno)));
 	}
 
 	return static_cast<T>(value);

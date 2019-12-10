@@ -24,13 +24,12 @@
 
 #pragma once
 
-#define HWCPIPE_TAG "adb-hwc"
+#define HWCPIPE_TAG "HWCPipe"
 
 #if defined(__ANDROID__)
 #	include <android/log.h>
 
 #	define HWCPIPE_LOG(...) __android_log_print(ANDROID_LOG_VERBOSE, HWCPIPE_TAG, __VA_ARGS__)
-#	define HWCPIPE_INFO(...) __android_log_print(ANDROID_LOG_INFO, HWCPIPE_TAG, __VA_ARGS__)
 #else
 #	define HWCPIPE_LOG(...)                              \
 		{                                                 \

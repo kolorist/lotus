@@ -8,8 +8,14 @@
 namespace lotus {
 
 	void										init_capture_for_this_thread(const u32 i_threadId, const_cstr i_captureName);
+	void										stop_capture_for_this_thread();
+	void										init_hardware_counters();
+	void										stop_hardware_counters();
 	void										begin_capture(const u64 i_captureIdx);
 	void										end_capture(const u64 i_captureIdx);
+
+	void										capture_counters_into(hardware_counters_t& o_counters);
+	void										capture_and_fill_counters_into(hardware_counters_buffer_t& o_buffer, const size i_offset);
 
 	template <typename allocator_t>
 	void										unpack_capture(floral::fixed_array<unpacked_event, allocator_t>& o_unpackedEvents, const sidx i_captureIdx);
