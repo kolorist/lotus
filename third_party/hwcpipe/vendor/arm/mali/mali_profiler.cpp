@@ -15,6 +15,8 @@ using mali_userspace::MALI_NAME_BLOCK_TILER;
 namespace hwcpipe
 {
 
+// ---------------------------------------------
+
 struct mali_hardware_info_t
 {
 	unsigned int mp_count;
@@ -25,62 +27,133 @@ struct mali_hardware_info_t
 	unsigned int l2_slices;
 };
 
-static bool s_gpuProfilerReady = false;
+struct runtime_hardware_info_t
+{
+	int device_fd;
+	int hwc_fd;
+	int gpu_id;
+	int num_cores;
+	int num_l2_slices;
 
-static const char* k_maliDevicePath = "/dev/mali0";
+	runtime_hardware_info_t()
+		: device_fd(-1)
+		, hwc_fd(-1)
+		, gpu_id(-1)
+		, num_cores(-1)
+		, num_l2_slices(-1)
+	{ }
+};
 
-static int s_deviceFd = -1;
-static int s_hwcFd = -1;
-static int s_gpuId = -1;
-static int s_numCores = 0;
-static int s_numL2Slices = 0;
-static int s_bufferCount = 16;
-static size_t s_bufferSize = 0;
-static uint32_t s_hwVer = 0;
-static uint8_t* s_sampleData = nullptr;
-static const char* const* s_namesLut = nullptr;
-static uint32_t* s_rawCounterBuffer = nullptr;
-static size_t s_numCoreIndexRemap = 0;
-static unsigned int* s_coreIndexRemap = nullptr;
-static uint64_t s_timeStamp = 0;
+struct profile_info_t
+{
+	const uint32_t k_buffer_count;
+	uint32_t hw_version;
+	size_t buffer_size;
+	size_t num_core_index_remap;
+	uint64_t time_stamp;
 
-static constexpr int k_invalidIndex = -1;
+	uint8_t* sample_data;
+	const char* const* names_lut;
+	uint32_t* raw_counter_data;
+	unsigned int* core_index_remap;
 
+	profile_info_t()
+		: k_buffer_count(16)
+		, hw_version(0)
+		, buffer_size(0)
+		, num_core_index_remap(0)
+		, time_stamp(0)
+
+		, sample_data(nullptr)
+		, names_lut(nullptr)
+		, raw_counter_data(nullptr)
+		, core_index_remap(nullptr)
+	{ }
+};
+
+typedef uint64_t (*read_func_t)(mali_userspace::MaliCounterBlockName i_block, const int i_index);
 struct counter_index_pairs_t
 {
 	mali_userspace::MaliCounterBlockName blockName;
+	read_func_t readFunc;
 	int index;
 	uint64_t value;
 };
-counter_index_pairs_t s_enabledCounters[(size_t)gpu_counter_e::count];
-static int s_numEnabledCounters = 0;
 
 struct counter_mapping_t
 {
 	mali_userspace::MaliCounterBlockName		blockName;
 	const char*									counterName;
+	read_func_t									readFunc;
 };
-static counter_mapping_t k_bifrostMapping[] = {
-	{ MALI_NAME_BLOCK_JM,						"GPU_ACTIVE" },		// gpu_cycles
-	{ MALI_NAME_BLOCK_JM,						"JS0_ACTIVE" },		// fragment_cycles
-	{ MALI_NAME_BLOCK_TILER,					"TILER_ACTIVE" },	// tiler_cycles
 
-	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_16" },	// varying_16_bits
-	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_32" },	// varying_32_bits
-};
-static counter_mapping_t k_midgardMapping[] = {
-	{ MALI_NAME_BLOCK_JM,						"GPU_ACTIVE" },		// gpu_cycles
-	{ MALI_NAME_BLOCK_JM,						"JS0_ACTIVE" },		// fragment_cycles
-	{ MALI_NAME_BLOCK_TILER,					"TILER_ACTIVE" },	// tiler_cycles
+// ---------------------------------------------
 
-	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_16" },	// varying_16_bits
-	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_32" },	// varying_32_bits
-};
-counter_mapping_t* s_counterMapping = nullptr;
+static bool s_gpuProfilerReady = false;
+static const char* k_maliDevicePath = "/dev/mali0";
+static runtime_hardware_info_t s_hwInfo;
+static profile_info_t s_profInfo;
+
+static counter_index_pairs_t s_enabledCounters[(size_t)gpu_counter_e::count];
+
+// ---------------------------------------------
+
+static constexpr int k_invalidIndex = -1;
 
 // ---------------------------------------------
 
 int find_counter_index_by_name(mali_userspace::MaliCounterBlockName i_block, const char* i_name);
+
+// ---------------------------------------------
+// readers
+
+uint64_t get_counter_value(mali_userspace::MaliCounterBlockName i_block, const int i_index);
+
+inline uint64_t default_read(mali_userspace::MaliCounterBlockName i_block, const int i_index)
+{
+	return get_counter_value(i_block, i_index);
+}
+
+inline uint64_t read_beats_to_bytes(mali_userspace::MaliCounterBlockName i_block, const int i_index)
+{
+	return 16 * get_counter_value(i_block, i_index);
+}
+
+// ---------------------------------------------
+
+static counter_mapping_t k_bifrostMapping[] =
+{
+	{ MALI_NAME_BLOCK_JM,						"GPU_ACTIVE", &default_read },		// gpu_cycles
+	{ MALI_NAME_BLOCK_JM,						"JS0_ACTIVE", &default_read },		// fragment_cycles
+	{ MALI_NAME_BLOCK_TILER,					"TILER_ACTIVE", &default_read },	// tiler_cycles
+
+	{ MALI_NAME_BLOCK_SHADER,					"EXEC_CORE_ACTIVE", &default_read },	// shader_cycles
+	{ MALI_NAME_BLOCK_SHADER,					"EXEC_INSTR_COUNT", &default_read },	// shader_arithmetic_cycles
+	{ MALI_NAME_BLOCK_SHADER,					"TEX_FILT_NUM_OPERATIONS", &default_read },		// shader_texture_cycles
+	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_16", &default_read },	// varying_16_bits
+	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_32", &default_read },	// varying_32_bits
+
+	{ MALI_NAME_BLOCK_MMU,						"L2_EXT_READ_BEATS", &read_beats_to_bytes },	// external_memory_read_bytes
+	{ MALI_NAME_BLOCK_MMU,						"L2_EXT_WRITE_BEATS", &read_beats_to_bytes },	// external_memory_write_bytes
+};
+static counter_mapping_t k_midgardMapping[] =
+{
+	{ MALI_NAME_BLOCK_JM,						"GPU_ACTIVE", &default_read },		// gpu_cycles
+	{ MALI_NAME_BLOCK_JM,						"JS0_ACTIVE", &default_read },		// fragment_cycles
+	{ MALI_NAME_BLOCK_TILER,					"TILER_ACTIVE", &default_read },	// tiler_cycles
+
+	{ MALI_NAME_BLOCK_SHADER,					"<none>", nullptr },		// shader_cycles
+	{ MALI_NAME_BLOCK_SHADER,					"<none>", nullptr },		// shader_arithmetic_cycles
+	{ MALI_NAME_BLOCK_SHADER,					"<none>", nullptr },		// shader_texture_cycles
+	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_16", &default_read },	// varying_16_bits
+	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_32", &default_read },	// varying_32_bits
+
+	{ MALI_NAME_BLOCK_MMU,						"L2_EXT_READ_BEATS", &read_beats_to_bytes },	// external_memory_read_bytes
+	{ MALI_NAME_BLOCK_MMU,						"L2_EXT_WRITE_BEATS", &read_beats_to_bytes },	// external_memory_write_bytes
+};
+counter_mapping_t* s_counterMapping = nullptr;
+
+// ---------------------------------------------
 
 mali_hardware_info_t get_mali_hardware_info(const char* i_path)
 {
@@ -266,7 +339,7 @@ void find_products_and_create_mapping(gpu_counter_e* i_enabledCounters, const si
 	const mali_userspace::CounterMapping* mapping = nullptr;
 	for (size_t i = 0; i < mali_userspace::NUM_PRODUCTS; i++)
 	{
-		if ((mali_userspace::products[i].product_mask & s_gpuId) == mali_userspace::products[i].product_id)
+		if ((mali_userspace::products[i].product_mask & s_hwInfo.gpu_id) == mali_userspace::products[i].product_id)
 		{
 			mapping = &mali_userspace::products[i];
 			break;
@@ -316,34 +389,29 @@ void find_products_and_create_mapping(gpu_counter_e* i_enabledCounters, const si
 	for (int i = 0; i < (int)gpu_counter_e::count; i++)
 	{
 		s_enabledCounters[i].blockName = MALI_NAME_BLOCK_JM;
+		s_enabledCounters[i].readFunc = nullptr;
 		s_enabledCounters[i].index = k_invalidIndex;
 		s_enabledCounters[i].value = 0;
 	}
 
 	// fill index map using mappings
-	s_numEnabledCounters = (int)i_numCounters;
-	if (s_numEnabledCounters > (int)gpu_counter_e::count)
-	{
-		HWCPIPE_LOG("Invalid number of enabled counter.");
-		return;
-	}
-
 	for (int i = 0; i < i_numCounters; i++)
 	{
-		s_enabledCounters[i].blockName = s_counterMapping[(int)i_enabledCounters[i]].blockName;
-		s_enabledCounters[i].index = find_counter_index_by_name(
-				s_counterMapping[(int)i_enabledCounters[i]].blockName,
-				s_counterMapping[(int)i_enabledCounters[i]].counterName);
-		if (s_enabledCounters[i].index > 0)
+		int cIdx = (int)i_enabledCounters[i];
+		s_enabledCounters[cIdx].blockName = s_counterMapping[cIdx].blockName;
+		s_enabledCounters[cIdx].readFunc = s_counterMapping[cIdx].readFunc;
+		s_enabledCounters[cIdx].index = find_counter_index_by_name(
+				s_counterMapping[cIdx].blockName, s_counterMapping[cIdx].counterName);
+		if (s_enabledCounters[cIdx].index > 0)
 		{
-			HWCPIPE_INFO("Enabled counter: %s @id %d",
-					s_counterMapping[(int)i_enabledCounters[i]].counterName,
-					s_enabledCounters[i].index);
+			HWCPIPE_INFO("Enabled counter: %s(%d) @id %d",
+					s_counterMapping[cIdx].counterName,
+					cIdx, s_enabledCounters[cIdx].index);
 		}
 		else
 		{
-			HWCPIPE_LOG("Cannot enable counter: %s (not available)",
-					s_counterMapping[(int)i_enabledCounters[i]].counterName);
+			HWCPIPE_LOG("Cannot enable counter: %s(%d) (not available)",
+					s_counterMapping[cIdx].counterName, cIdx);
 		}
 	}
 }
@@ -352,17 +420,17 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 {
 	mali_hardware_info_t hwInfo = get_mali_hardware_info(k_maliDevicePath);
 
-	s_gpuId = hwInfo.gpu_id;
-	s_numCores = hwInfo.mp_count;
-	s_numL2Slices = hwInfo.l2_slices;
+	s_hwInfo.gpu_id = hwInfo.gpu_id;
+	s_hwInfo.num_cores = hwInfo.mp_count;
+	s_hwInfo.num_l2_slices = hwInfo.l2_slices;
 
-	HWCPIPE_INFO("GPU ID: %x", s_gpuId);
-	HWCPIPE_INFO("Number of cores: %d", s_numCores);
-	HWCPIPE_INFO("Number of L2 slices: %d", s_numL2Slices);
+	HWCPIPE_INFO("GPU ID: %x", s_hwInfo.gpu_id);
+	HWCPIPE_INFO("Number of cores: %d", s_hwInfo.num_cores);
+	HWCPIPE_INFO("Number of L2 slices: %d", s_hwInfo.num_l2_slices);
 
-	s_deviceFd = open(k_maliDevicePath, O_RDWR | O_CLOEXEC | O_NONBLOCK);
+	s_hwInfo.device_fd = open(k_maliDevicePath, O_RDWR | O_CLOEXEC | O_NONBLOCK);
 
-	if (s_deviceFd < 0)
+	if (s_hwInfo.device_fd < 0)
 	{
 		HWCPIPE_LOG("Failed to open /dev/mali0.");
 		return;
@@ -372,10 +440,10 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 		mali_userspace::kbase_uk_hwcnt_reader_version_check_args check;
 		memset(&check, 0, sizeof(check));
 
-		if (mali_userspace::mali_ioctl(s_deviceFd, check) != 0)
+		if (mali_userspace::mali_ioctl(s_hwInfo.device_fd, check) != 0)
 		{
 			mali_userspace::kbase_ioctl_version_check _check = {0, 0};
-			if (ioctl(s_deviceFd, KBASE_IOCTL_VERSION_CHECK, &_check) < 0)
+			if (ioctl(s_hwInfo.device_fd, KBASE_IOCTL_VERSION_CHECK, &_check) < 0)
 			{
 				HWCPIPE_LOG("Failed to get ABI version.");
 				return;
@@ -394,10 +462,10 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 		flags.header.id    = mali_userspace::KBASE_FUNC_SET_FLAGS;
 		flags.create_flags = mali_userspace::BASE_CONTEXT_CREATE_KERNEL_FLAGS;
 
-		if (mali_userspace::mali_ioctl(s_deviceFd, flags) != 0)
+		if (mali_userspace::mali_ioctl(s_hwInfo.device_fd, flags) != 0)
 		{
 			mali_userspace::kbase_ioctl_set_flags _flags = {1u << 1};
-			if (ioctl(s_deviceFd, KBASE_IOCTL_SET_FLAGS, &_flags) < 0)
+			if (ioctl(s_hwInfo.device_fd, KBASE_IOCTL_SET_FLAGS, &_flags) < 0)
 			{
 				HWCPIPE_LOG("Failed settings flags ioctl.");
 				return;
@@ -409,40 +477,40 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 		mali_userspace::kbase_uk_hwcnt_reader_setup setup;
 		memset(&setup, 0, sizeof(setup));
 		setup.header.id    = mali_userspace::KBASE_FUNC_HWCNT_READER_SETUP;
-		setup.buffer_count = s_bufferCount;
+		setup.buffer_count = s_profInfo.k_buffer_count;
 		setup.jm_bm        = -1;
 		setup.shader_bm    = -1;
 		setup.tiler_bm     = -1;
 		setup.mmu_l2_bm    = -1;
 		setup.fd           = -1;
 
-		if (mali_userspace::mali_ioctl(s_deviceFd, setup) != 0)
+		if (mali_userspace::mali_ioctl(s_hwInfo.device_fd, setup) != 0)
 		{
 			mali_userspace::kbase_ioctl_hwcnt_reader_setup _setup = {};
-			_setup.buffer_count                                   = s_bufferCount;
+			_setup.buffer_count                                   = s_profInfo.k_buffer_count;
 			_setup.jm_bm                                          = -1;
 			_setup.shader_bm                                      = -1;
 			_setup.tiler_bm                                       = -1;
 			_setup.mmu_l2_bm                                      = -1;
 
 			int ret;
-			if ((ret = ioctl(s_deviceFd, KBASE_IOCTL_HWCNT_READER_SETUP, &_setup)) < 0)
+			if ((ret = ioctl(s_hwInfo.device_fd, KBASE_IOCTL_HWCNT_READER_SETUP, &_setup)) < 0)
 			{
 				HWCPIPE_LOG("Failed setting hwcnt reader ioctl. Error: {%d, %s}", errno, strerror(errno));
 				return;
 			}
-			s_hwcFd = ret;
+			s_hwInfo.hwc_fd = ret;
 		}
 		else
 		{
-			s_hwcFd = setup.fd;
+			s_hwInfo.hwc_fd = setup.fd;
 		}
 	}
 
 	{
 		uint32_t api_version = ~mali_userspace::HWCNT_READER_API;
 
-		if (ioctl(s_hwcFd, mali_userspace::KBASE_HWCNT_READER_GET_API_VERSION, &api_version) != 0)
+		if (ioctl(s_hwInfo.hwc_fd, mali_userspace::KBASE_HWCNT_READER_GET_API_VERSION, &api_version) != 0)
 		{
 			HWCPIPE_LOG("Could not determine hwcnt reader API.");
 			return;
@@ -454,27 +522,27 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 		}
 	}
 
-	if (ioctl(s_hwcFd, static_cast<int>(mali_userspace::KBASE_HWCNT_READER_GET_BUFFER_SIZE), &s_bufferSize) != 0)
+	if (ioctl(s_hwInfo.hwc_fd, static_cast<int>(mali_userspace::KBASE_HWCNT_READER_GET_BUFFER_SIZE), &s_profInfo.buffer_size) != 0)
 	{
 		HWCPIPE_LOG("Failed to get buffer size.");
 		return;
 	}
 
-	if (ioctl(s_hwcFd, static_cast<int>(mali_userspace::KBASE_HWCNT_READER_GET_HWVER), &s_hwVer) != 0)
+	if (ioctl(s_hwInfo.hwc_fd, static_cast<int>(mali_userspace::KBASE_HWCNT_READER_GET_HWVER), &s_profInfo.hw_version) != 0)
 	{
 		HWCPIPE_LOG("Could not determine HW version.");
 		return;
 	}
 
-	if (s_hwVer < 5)
+	if (s_profInfo.hw_version < 5)
 	{
 		HWCPIPE_LOG("Unsupported HW version.");
 		return;
 	}
 
-	s_sampleData = static_cast<uint8_t *>(mmap(nullptr, s_bufferCount * s_bufferSize, PROT_READ, MAP_PRIVATE, s_hwcFd, 0));
+	s_profInfo.sample_data = static_cast<uint8_t *>(mmap(nullptr, s_profInfo.k_buffer_count * s_profInfo.buffer_size, PROT_READ, MAP_PRIVATE, s_hwInfo.hwc_fd, 0));
 
-	if (s_sampleData == MAP_FAILED)
+	if (s_profInfo.sample_data == MAP_FAILED)
 	{
 		HWCPIPE_LOG("Failed to map sample data.");
 		return;
@@ -484,7 +552,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 		const mali_userspace::CounterMapping* mapping = nullptr;
 		for (size_t i = 0; i < mali_userspace::NUM_PRODUCTS; i++)
 		{
-			if ((mali_userspace::products[i].product_mask & s_gpuId) == mali_userspace::products[i].product_id)
+			if ((mali_userspace::products[i].product_mask & s_hwInfo.gpu_id) == mali_userspace::products[i].product_id)
 			{
 				mapping = &mali_userspace::products[i];
 				break;
@@ -493,7 +561,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 
 		if (mapping)
 		{
-			s_namesLut = mapping->names_lut;
+			s_profInfo.names_lut = mapping->names_lut;
 		}
 		else
 		{
@@ -502,11 +570,11 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 		}
 	}
 
-	s_rawCounterBuffer = (uint32_t*)memory::allocate(s_bufferSize);
+	s_profInfo.raw_counter_data = (uint32_t*)memory::allocate(s_profInfo.buffer_size);
 
 	// Build core remap table.
-	s_numCoreIndexRemap = hwInfo.mp_count;
-	s_coreIndexRemap = (unsigned int*)memory::allocate(s_numCoreIndexRemap * sizeof(unsigned int));
+	s_profInfo.num_core_index_remap = hwInfo.mp_count;
+	s_profInfo.core_index_remap = (unsigned int*)memory::allocate(s_profInfo.num_core_index_remap * sizeof(unsigned int));
 
 	unsigned int mask = hwInfo.core_mask;
 
@@ -514,7 +582,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 	while (mask != 0)
 	{
 		unsigned int bit = __builtin_ctz(mask);
-		s_coreIndexRemap[cidx] = bit;
+		s_profInfo.core_index_remap[cidx] = bit;
 		mask &= ~(1u << bit);
 		cidx++;
 	}
@@ -528,7 +596,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 void wait_next_event()
 {
 	pollfd poolFd;
-	poolFd.fd     = s_hwcFd;
+	poolFd.fd     = s_hwInfo.hwc_fd;
 	poolFd.events = POLLIN;
 
 	const int count = poll(&poolFd, 1, -1);
@@ -542,15 +610,15 @@ void wait_next_event()
 	{
 		mali_userspace::kbase_hwcnt_reader_metadata meta;
 
-		if (ioctl(s_hwcFd, static_cast<int>(mali_userspace::KBASE_HWCNT_READER_GET_BUFFER), &meta) != 0)
+		if (ioctl(s_hwInfo.hwc_fd, static_cast<int>(mali_userspace::KBASE_HWCNT_READER_GET_BUFFER), &meta) != 0)
 		{
 			HWCPIPE_LOG("Failed READER_GET_BUFFER.");
 		}
 
-		memcpy(s_rawCounterBuffer, s_sampleData + s_bufferSize * meta.buffer_idx, s_bufferSize);
-		s_timeStamp = meta.timestamp;
+		memcpy(s_profInfo.raw_counter_data, s_profInfo.sample_data + s_profInfo.buffer_size * meta.buffer_idx, s_profInfo.buffer_size);
+		s_profInfo.time_stamp = meta.timestamp;
 
-		if (ioctl(s_hwcFd, mali_userspace::KBASE_HWCNT_READER_PUT_BUFFER, &meta) != 0)
+		if (ioctl(s_hwInfo.hwc_fd, mali_userspace::KBASE_HWCNT_READER_PUT_BUFFER, &meta) != 0)
 		{
 			HWCPIPE_LOG("Failed READER_PUT_BUFFER.");
 		}
@@ -563,7 +631,7 @@ void wait_next_event()
 
 void sample_counters()
 {
-	if (ioctl(s_hwcFd, mali_userspace::KBASE_HWCNT_READER_DUMP, 0) != 0)
+	if (ioctl(s_hwInfo.hwc_fd, mali_userspace::KBASE_HWCNT_READER_DUMP, 0) != 0)
 	{
 		HWCPIPE_LOG("Could not sample hardware counters.");
 	}
@@ -574,32 +642,32 @@ const uint32_t* get_counters_block_base_address(mali_userspace::MaliCounterBlock
 	switch (i_block)
 	{
 		case mali_userspace::MALI_NAME_BLOCK_JM:
-			return s_rawCounterBuffer + mali_userspace::MALI_NAME_BLOCK_SIZE * 0;
+			return s_profInfo.raw_counter_data + mali_userspace::MALI_NAME_BLOCK_SIZE * 0;
 		case mali_userspace::MALI_NAME_BLOCK_MMU:
-			if (i_index < 0 || i_index >= s_numL2Slices)
+			if (i_index < 0 || i_index >= s_hwInfo.num_l2_slices)
 			{
 				HWCPIPE_LOG("Invalid slice number.");
 				return nullptr;
 			}
 
 			// If an MMU counter is selected, index refers to the MMU slice
-			return s_rawCounterBuffer + mali_userspace::MALI_NAME_BLOCK_SIZE * (2 + i_index);
+			return s_profInfo.raw_counter_data + mali_userspace::MALI_NAME_BLOCK_SIZE * (2 + i_index);
 		case mali_userspace::MALI_NAME_BLOCK_TILER:
-			return s_rawCounterBuffer + mali_userspace::MALI_NAME_BLOCK_SIZE * 1;
+			return s_profInfo.raw_counter_data + mali_userspace::MALI_NAME_BLOCK_SIZE * 1;
 		default:
-			if (i_index < 0 || i_index >= s_numCores)
+			if (i_index < 0 || i_index >= s_hwInfo.num_cores)
 			{
 				HWCPIPE_LOG("Invalid core number.");
 			}
 
 			// If a shader core counter is selected, index refers to the core index
-			return s_rawCounterBuffer + mali_userspace::MALI_NAME_BLOCK_SIZE * (2 + s_numL2Slices + s_coreIndexRemap[i_index]);
+			return s_profInfo.raw_counter_data + mali_userspace::MALI_NAME_BLOCK_SIZE * (2 + s_hwInfo.num_l2_slices + s_profInfo.core_index_remap[i_index]);
 	}
 }
 
 int find_counter_index_by_name(mali_userspace::MaliCounterBlockName i_block, const char* i_name)
 {
-	const char* const* names = &s_namesLut[mali_userspace::MALI_NAME_BLOCK_SIZE * i_block];
+	const char* const* names = &s_profInfo.names_lut[mali_userspace::MALI_NAME_BLOCK_SIZE * i_block];
 	for (int i = 0; i < mali_userspace::MALI_NAME_BLOCK_SIZE; ++i)
 	{
 		if (strstr(names[i], i_name) != nullptr)
@@ -618,7 +686,7 @@ uint64_t get_counter_value(mali_userspace::MaliCounterBlockName i_block, const c
 	{
 		case mali_userspace::MALI_NAME_BLOCK_MMU:
 			// If an MMU counter is selected, sum the values over MMU slices
-			for (int i = 0; i < s_numL2Slices; i++)
+			for (int i = 0; i < s_hwInfo.num_l2_slices; i++)
 			{
 				sum += get_counters_block_base_address(i_block, i)[find_counter_index_by_name(i_block, i_name)];
 			}
@@ -626,7 +694,7 @@ uint64_t get_counter_value(mali_userspace::MaliCounterBlockName i_block, const c
 
 		case mali_userspace::MALI_NAME_BLOCK_SHADER:
 			// If a shader core counter is selected, sum the values over shader cores
-			for (int i = 0; i < s_numCores; i++)
+			for (int i = 0; i < s_hwInfo.num_cores; i++)
 			{
 				sum += get_counters_block_base_address(i_block, i)[find_counter_index_by_name(i_block, i_name)];
 			}
@@ -646,7 +714,7 @@ uint64_t get_counter_value(mali_userspace::MaliCounterBlockName i_block, const i
 	{
 		case mali_userspace::MALI_NAME_BLOCK_MMU:
 			// If an MMU counter is selected, sum the values over MMU slices
-			for (int i = 0; i < s_numL2Slices; i++)
+			for (int i = 0; i < s_hwInfo.num_l2_slices; i++)
 			{
 				sum += get_counters_block_base_address(i_block, i)[i_index];
 			}
@@ -654,7 +722,7 @@ uint64_t get_counter_value(mali_userspace::MaliCounterBlockName i_block, const i
 
 		case mali_userspace::MALI_NAME_BLOCK_SHADER:
 			// If a shader core counter is selected, sum the values over shader cores
-			for (int i = 0; i < s_numCores; i++)
+			for (int i = 0; i < s_hwInfo.num_cores; i++)
 			{
 				sum += get_counters_block_base_address(i_block, i)[i_index];
 			}
@@ -682,15 +750,15 @@ void start_mali_profiler()
 
 void stop_mali_profiler()
 {
-	if (s_coreIndexRemap)
+	if (s_profInfo.core_index_remap)
 	{
-		memory::free(s_coreIndexRemap);
-		s_coreIndexRemap = nullptr;
+		memory::free(s_profInfo.core_index_remap);
+		s_profInfo.core_index_remap = nullptr;
 	}
-	if (s_rawCounterBuffer)
+	if (s_profInfo.raw_counter_data)
 	{
-		memory::free(s_rawCounterBuffer);
-		s_rawCounterBuffer = nullptr;
+		memory::free(s_profInfo.raw_counter_data);
+		s_profInfo.raw_counter_data = nullptr;
 	}
 }
 
@@ -705,11 +773,18 @@ void sample_mali_profiler()
 	wait_next_event();
 
 	// fill values
-	for (int i = 0; i < s_numEnabledCounters; i++)
+	for (int i = 0; i < (int)gpu_counter_e::count; i++)
 	{
 		if (s_enabledCounters[i].index >= 0)
 		{
-			s_enabledCounters[i].value = get_counter_value(s_counterMapping[i].blockName, s_enabledCounters[i].index);
+			if (s_enabledCounters[i].readFunc)
+			{
+				s_enabledCounters[i].value = s_enabledCounters[i].readFunc(s_enabledCounters[i].blockName, s_enabledCounters[i].index);
+			}
+			else
+			{
+				s_enabledCounters[i].value = 0;
+			}
 		}
 	}
 }
@@ -717,11 +792,6 @@ void sample_mali_profiler()
 uint64_t get_counter_value(const gpu_counter_e i_counter)
 {
 	if (!s_gpuProfilerReady)
-	{
-		return 0;
-	}
-
-	if ((int)i_counter >= s_numEnabledCounters)
 	{
 		return 0;
 	}

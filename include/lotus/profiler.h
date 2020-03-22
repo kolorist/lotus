@@ -17,8 +17,14 @@ namespace lotus {
 	void										capture_counters_into(hardware_counters_t& o_counters);
 	void										capture_and_fill_counters_into(hardware_counters_buffer_t& o_buffer, const size i_offset);
 
-	template <typename allocator_t>
-	void										unpack_capture(floral::fixed_array<unpacked_event, allocator_t>& o_unpackedEvents, const sidx i_captureIdx);
+	template <typename t_allocator>
+	void										unpack_capture(floral::fixed_array<unpacked_event, t_allocator>& o_unpackedEvents, const sidx i_captureIdx);
+	template <typename t_allocator>
+	void										unpack_capture(floral::fast_fixed_array<unpacked_event, t_allocator>& o_unpackedEvents, const sidx i_captureIdx);
+	template <typename t_allocator, u32 t_capacity>
+	void										unpack_capture(floral::ring_buffer_st<unpacked_event, t_allocator, t_capacity>& o_unpackedEvents, const sidx i_captureIdx);
+	template <typename t_allocator, u32 t_capacity>
+	void										unpack_capture(floral::fast_ring_buffer_st<unpacked_event, t_allocator, t_capacity>& o_unpackedEvents, const sidx i_captureIdx);
 
 	event*										allocate_event();
 	void										begin_event(event* i_event, const_cstr i_name);
@@ -33,8 +39,8 @@ namespace lotus {
 	};
 	
 #define PROFILE_SCOPE(ScopeName)														\
-	static lotus::event *lotus_pevent_##ScopeName = lotus::allocate_event();			\
-	lotus::profile_scope lotus_scope_##ScopeName(lotus_pevent_##ScopeName, #ScopeName)
+	static lotus::event *lotus_pevent_this_scope = lotus::allocate_event();			\
+	lotus::profile_scope lotus_scope_this_scope(lotus_pevent_this_scope, ScopeName)
 }
 
 #include "profiler.hpp"

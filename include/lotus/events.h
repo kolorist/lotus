@@ -16,6 +16,9 @@ struct hardware_counters_t
 
 	f32											varying_16_bits;
 	f32											varying_32_bits;
+
+	f32											external_memory_read_bytes;
+	f32											external_memory_write_bytes;
 };
 
 struct hardware_counters_buffer_t
@@ -26,14 +29,19 @@ struct hardware_counters_buffer_t
 
 	f32*										varying_16_bits;
 	f32*										varying_32_bits;
+
+	f32*										external_memory_read_bytes;
+	f32*										external_memory_write_bytes;
 };
 
 // this struct is copyable
 struct event {
 	u64										time_stamp;
+	u64										duration_ticks;
 	f64										duration_ms;
 	u32										depth;
-	const_cstr								name;
+	//const_cstr								name;
+	c8										name[CAPTURE_NAME_LENGTH];
 
 	sidx									widx;
 };
@@ -42,9 +50,11 @@ struct event {
 // used by users to store profile events for processing
 struct unpacked_event {
 	u64										time_stamp;
+	u64										duration_ticks;
 	f64										duration_ms;
 	u32										depth;
-	const_cstr								name;
+	//const_cstr								name;
+	c8										name[CAPTURE_NAME_LENGTH];
 
 	bool									ready;
 };

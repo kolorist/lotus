@@ -94,6 +94,9 @@ void init_hardware_counters()
 
 		hwcpipe::gpu_counter_e::varying_16_bits,
 		hwcpipe::gpu_counter_e::varying_32_bits,
+
+		hwcpipe::gpu_counter_e::external_memory_read_bytes,
+		hwcpipe::gpu_counter_e::external_memory_write_bytes,
 	};
 	hwcpipe::set_allocators(&hwcpipe_alloc, &hwcpipe_free);
 	hwcpipe::initialize_gpu_counters(enabledGpuCounters, sizeof(enabledGpuCounters) / sizeof(hwcpipe::gpu_counter_e));
@@ -113,6 +116,7 @@ void stop_hardware_counters()
 
 void capture_counters_into(hardware_counters_t& o_counters)
 {
+#if defined(PLATFORM_POSIX)
 	hwcpipe::sample();
 	o_counters.gpu_cycles = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::gpu_cycles);
 	o_counters.fragment_cycles = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::fragment_cycles);
@@ -120,11 +124,16 @@ void capture_counters_into(hardware_counters_t& o_counters)
 
 	o_counters.varying_16_bits = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::varying_16_bits);
 	o_counters.varying_32_bits = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::varying_32_bits);
+
+	o_counters.external_memory_read_bytes = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::external_memory_read_bytes);
+	o_counters.external_memory_write_bytes = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::external_memory_write_bytes);
+#endif
 }
 
 
 void capture_and_fill_counters_into(hardware_counters_buffer_t& o_buffer, const size i_offset)
 {
+#if defined(PLATFORM_POSIX)
 	hwcpipe::sample();
 	o_buffer.gpu_cycles[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::gpu_cycles);
 	o_buffer.fragment_cycles[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::fragment_cycles);
@@ -132,6 +141,10 @@ void capture_and_fill_counters_into(hardware_counters_buffer_t& o_buffer, const 
 
 	o_buffer.varying_16_bits[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::varying_16_bits);
 	o_buffer.varying_32_bits[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::varying_32_bits);
+
+	o_buffer.external_memory_read_bytes[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::external_memory_read_bytes);
+	o_buffer.external_memory_write_bytes[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::external_memory_write_bytes);
+#endif
 }
 
 event* allocate_event() {
@@ -166,7 +179,7 @@ void begin_event(event* i_event, const_cstr i_name)
 		i_event->time_stamp = 0;
 #endif
 		i_event->depth = detail::s_capture_info.current_depth;
-		i_event->name = i_name;
+		strcpy(i_event->name, i_name);
 		i_event->widx = widx;
 	}
 }
@@ -177,8 +190,10 @@ void end_event(event* i_event)
 #if defined(PLATFORM_WINDOWS)			
 		LARGE_INTEGER tp;
 		QueryPerformanceCounter(&tp);
+		i_event->duration_ticks = tp.QuadPart - i_event->time_stamp;
 		i_event->duration_ms = (f64)(tp.QuadPart - i_event->time_stamp) * 1000 / (f64)detail::s_capture_info.thread_frequency;
 #else
+		i_event->duration_ticks = 0;
 		i_event->duration_ms = 0;
 #endif
 		detail::s_capture_info.current_depth--;
@@ -186,9 +201,10 @@ void end_event(event* i_event)
 		detail::unpacked_event_buffer_t& eb = detail::s_unpacked_event_buffers[detail::s_capture_info.event_buffer_idx];
 		unpacked_event& eve = eb.data[i_event->widx];
 		eve.time_stamp = i_event->time_stamp;
+		eve.duration_ticks = i_event->duration_ticks;
 		eve.duration_ms = i_event->duration_ms;
 		eve.depth = i_event->depth;
-		eve.name = i_event->name;
+		strcpy(eve.name, i_event->name);
 		eve.ready = true;
 	}
 }
