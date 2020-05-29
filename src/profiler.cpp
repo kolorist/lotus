@@ -92,6 +92,7 @@ void init_hardware_counters()
 		hwcpipe::gpu_counter_e::fragment_cycles,
 		hwcpipe::gpu_counter_e::tiler_cycles,
 
+		hwcpipe::gpu_counter_e::shader_texture_cycles,
 		hwcpipe::gpu_counter_e::varying_16_bits,
 		hwcpipe::gpu_counter_e::varying_32_bits,
 
@@ -122,6 +123,7 @@ void capture_counters_into(hardware_counters_t& o_counters)
 	o_counters.fragment_cycles = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::fragment_cycles);
 	o_counters.tiler_cycles = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::tiler_cycles);
 
+	o_counters.shader_texture_cycles = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::shader_texture_cycles);
 	o_counters.varying_16_bits = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::varying_16_bits);
 	o_counters.varying_32_bits = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::varying_32_bits);
 
@@ -139,6 +141,7 @@ void capture_and_fill_counters_into(hardware_counters_buffer_t& o_buffer, const 
 	o_buffer.fragment_cycles[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::fragment_cycles);
 	o_buffer.tiler_cycles[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::tiler_cycles);
 
+	o_buffer.shader_texture_cycles[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::shader_texture_cycles);
 	o_buffer.varying_16_bits[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::varying_16_bits);
 	o_buffer.varying_32_bits[i_offset] = (f32)hwcpipe::get_counter_value(hwcpipe::gpu_counter_e::varying_32_bits);
 

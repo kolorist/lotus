@@ -14,6 +14,7 @@ struct hardware_counters_t
 	f32											fragment_cycles;
 	f32											tiler_cycles;
 
+	f32											shader_texture_cycles;
 	f32											varying_16_bits;
 	f32											varying_32_bits;
 
@@ -27,6 +28,7 @@ struct hardware_counters_buffer_t
 	f32*										fragment_cycles;
 	f32*										tiler_cycles;
 
+	f32*										shader_texture_cycles;
 	f32*										varying_16_bits;
 	f32*										varying_32_bits;
 
