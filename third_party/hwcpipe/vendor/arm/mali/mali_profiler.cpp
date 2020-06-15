@@ -144,7 +144,7 @@ static counter_mapping_t k_midgardMapping[] =
 
 	{ MALI_NAME_BLOCK_SHADER,					"<none>", nullptr },		// shader_cycles
 	{ MALI_NAME_BLOCK_SHADER,					"<none>", nullptr },		// shader_arithmetic_cycles
-	{ MALI_NAME_BLOCK_SHADER,					"<none>", nullptr },		// shader_texture_cycles
+	{ MALI_NAME_BLOCK_SHADER,					"TEX_ISSUES", &default_read },		// shader_texture_cycles
 	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_16", &default_read },	// varying_16_bits
 	{ MALI_NAME_BLOCK_SHADER,					"VARY_SLOT_32", &default_read },	// varying_32_bits
 

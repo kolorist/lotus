@@ -7,6 +7,12 @@
 #include <Windows.h>
 #endif
 
+#if defined(FLORAL_PLATFORM_POSIX)
+#if __ANDROID_API__ >= 23
+#include <android/trace.h>
+#endif
+#endif
+
 #include <hwcpipe/memory.h>
 #include <hwcpipe/hwcpipe.h>
 
@@ -171,6 +177,11 @@ const sidx _reserve_unpacked_event() {
 
 void begin_event(event* i_event, const_cstr i_name)
 {
+#if defined(FLORAL_PLATFORM_POSIX)
+#if __ANDROID_API__ >= 23
+	ATrace_beginSection(i_name);
+#endif
+#endif
 	sidx widx = _reserve_unpacked_event();
 	if (widx >= 0) {
 		detail::s_capture_info.current_depth++;
@@ -189,6 +200,11 @@ void begin_event(event* i_event, const_cstr i_name)
 
 void end_event(event* i_event)
 {
+#if defined(FLORAL_PLATFORM_POSIX)
+#if __ANDROID_API__ >= 23
+	ATrace_endSection();
+#endif
+#endif
 	if (i_event->widx >= 0) {
 #if defined(PLATFORM_WINDOWS)			
 		LARGE_INTEGER tp;
