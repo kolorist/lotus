@@ -416,7 +416,7 @@ void find_products_and_create_mapping(gpu_counter_e* i_enabledCounters, const si
 	}
 }
 
-void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_numCounters)
+const bool initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_numCounters)
 {
 	mali_hardware_info_t hwInfo = get_mali_hardware_info(k_maliDevicePath);
 
@@ -433,7 +433,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 	if (s_hwInfo.device_fd < 0)
 	{
 		HWCPIPE_LOG("Failed to open /dev/mali0.");
-		return;
+		return false;
 	}
 
 	{
@@ -446,13 +446,13 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 			if (ioctl(s_hwInfo.device_fd, KBASE_IOCTL_VERSION_CHECK, &_check) < 0)
 			{
 				HWCPIPE_LOG("Failed to get ABI version.");
-				return;
+				return false;
 			}
 		}
 		else if (check.major < 10)
 		{
 			HWCPIPE_LOG("Unsupported ABI version 10.");
-			return;
+			return false;
 		}
 	}
 
@@ -468,7 +468,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 			if (ioctl(s_hwInfo.device_fd, KBASE_IOCTL_SET_FLAGS, &_flags) < 0)
 			{
 				HWCPIPE_LOG("Failed settings flags ioctl.");
-				return;
+				return false;
 			}
 		}
 	}
@@ -497,7 +497,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 			if ((ret = ioctl(s_hwInfo.device_fd, KBASE_IOCTL_HWCNT_READER_SETUP, &_setup)) < 0)
 			{
 				HWCPIPE_LOG("Failed setting hwcnt reader ioctl. Error: {%d, %s}", errno, strerror(errno));
-				return;
+				return false;
 			}
 			s_hwInfo.hwc_fd = ret;
 		}
@@ -513,31 +513,31 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 		if (ioctl(s_hwInfo.hwc_fd, mali_userspace::KBASE_HWCNT_READER_GET_API_VERSION, &api_version) != 0)
 		{
 			HWCPIPE_LOG("Could not determine hwcnt reader API.");
-			return;
+			return false;
 		}
 		else if (api_version != mali_userspace::HWCNT_READER_API)
 		{
 			HWCPIPE_LOG("Invalid API version.");
-			return;
+			return false;
 		}
 	}
 
 	if (ioctl(s_hwInfo.hwc_fd, static_cast<int>(mali_userspace::KBASE_HWCNT_READER_GET_BUFFER_SIZE), &s_profInfo.buffer_size) != 0)
 	{
 		HWCPIPE_LOG("Failed to get buffer size.");
-		return;
+		return false;
 	}
 
 	if (ioctl(s_hwInfo.hwc_fd, static_cast<int>(mali_userspace::KBASE_HWCNT_READER_GET_HWVER), &s_profInfo.hw_version) != 0)
 	{
 		HWCPIPE_LOG("Could not determine HW version.");
-		return;
+		return false;
 	}
 
 	if (s_profInfo.hw_version < 5)
 	{
 		HWCPIPE_LOG("Unsupported HW version.");
-		return;
+		return false;
 	}
 
 	s_profInfo.sample_data = static_cast<uint8_t *>(mmap(nullptr, s_profInfo.k_buffer_count * s_profInfo.buffer_size, PROT_READ, MAP_PRIVATE, s_hwInfo.hwc_fd, 0));
@@ -545,7 +545,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 	if (s_profInfo.sample_data == MAP_FAILED)
 	{
 		HWCPIPE_LOG("Failed to map sample data.");
-		return;
+		return false;
 	}
 
 	{
@@ -566,7 +566,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 		else
 		{
 			HWCPIPE_LOG("Could not identify GPU.");
-			return;
+			return false;
 		}
 	}
 
@@ -589,6 +589,7 @@ void initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_n
 
 	find_products_and_create_mapping(i_enabledCounters, i_numCounters);
 	s_gpuProfilerReady = true;
+	return true;
 }
 
 // ---------------------------------------------

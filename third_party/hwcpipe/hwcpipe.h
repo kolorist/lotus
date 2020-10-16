@@ -8,7 +8,7 @@ namespace hwcpipe
 {
 // ---------------------------------------------
 
-void											initialize_gpu_counters(gpu_counter_e* i_enabledCounters, const size_t i_numCounters);
+const bool										initialize_gpu_counters(gpu_counter_e* i_enabledCounters, const size_t i_numCounters);
 void											start();
 void											stop();
 void											sample();

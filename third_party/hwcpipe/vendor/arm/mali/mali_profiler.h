@@ -7,7 +7,7 @@
 namespace hwcpipe
 {
 // ---------------------------------------------
-void											initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_numCounters);
+const bool										initialize_mali_profiler(gpu_counter_e* i_enabledCounters, const size_t i_numCounters);
 void											start_mali_profiler();
 void											stop_mali_profiler();
 void											sample_mali_profiler();

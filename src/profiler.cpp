@@ -27,7 +27,9 @@ namespace detail
 
 static sidx										s_threads_count = 0;
 static floral::mutex							s_init_mtx;
+#if defined(PLATFORM_POSIX)
 static bool										s_hardware_counter_ready = false;
+#endif
 static freelist_arena_t*						s_hwcArena = nullptr;
 
 static void* hwcpipe_alloc(size_t i_size)
@@ -84,13 +86,13 @@ void stop_capture_for_this_thread()
 	detail::s_capture_info.current_depth = 0;
 }
 
-void init_hardware_counters()
+const bool init_hardware_counters()
 {
 #if defined(PLATFORM_POSIX)
 	floral::lock_guard initGuard(s_init_mtx);
 	if (s_hardware_counter_ready)
 	{
-		return;
+		return true;
 	}
 	s_hwcArena = e_main_allocator.allocate_arena<freelist_arena_t>(SIZE_MB(1));
 	hwcpipe::gpu_counter_e enabledGpuCounters[] = {
@@ -106,9 +108,12 @@ void init_hardware_counters()
 		hwcpipe::gpu_counter_e::external_memory_write_bytes,
 	};
 	hwcpipe::set_allocators(&hwcpipe_alloc, &hwcpipe_free);
-	hwcpipe::initialize_gpu_counters(enabledGpuCounters, sizeof(enabledGpuCounters) / sizeof(hwcpipe::gpu_counter_e));
-	hwcpipe::start();
-	s_hardware_counter_ready = true;
+	s_hardware_counter_ready = hwcpipe::initialize_gpu_counters(enabledGpuCounters, sizeof(enabledGpuCounters) / sizeof(hwcpipe::gpu_counter_e));
+	if (s_hardware_counter_ready)
+	{
+		hwcpipe::start();
+	}
+	return s_hardware_counter_ready;
 #endif
 }
 

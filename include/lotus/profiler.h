@@ -9,7 +9,7 @@ namespace lotus {
 
 	void										init_capture_for_this_thread(const u32 i_threadId, const_cstr i_captureName);
 	void										stop_capture_for_this_thread();
-	void										init_hardware_counters();
+	const bool									init_hardware_counters();
 	void										stop_hardware_counters();
 	void										begin_capture(const u64 i_captureIdx);
 	void										end_capture(const u64 i_captureIdx);
