@@ -114,6 +114,8 @@ const bool init_hardware_counters()
 		hwcpipe::start();
 	}
 	return s_hardware_counter_ready;
+#else
+	return true;
 #endif
 }
 
