@@ -126,6 +126,7 @@ static counter_mapping_t k_bifrostMapping[] =
 	{ MALI_NAME_BLOCK_JM,						"GPU_ACTIVE", &default_read },		// gpu_cycles
 	{ MALI_NAME_BLOCK_JM,						"JS0_ACTIVE", &default_read },		// fragment_cycles
 	{ MALI_NAME_BLOCK_TILER,					"TILER_ACTIVE", &default_read },	// tiler_cycles
+	{ MALI_NAME_BLOCK_SHADER,					"FRAG_TRANS_ELIM", &default_read },	// frag_elim
 
 	{ MALI_NAME_BLOCK_SHADER,					"EXEC_CORE_ACTIVE", &default_read },	// shader_cycles
 	{ MALI_NAME_BLOCK_SHADER,					"EXEC_INSTR_COUNT", &default_read },	// shader_arithmetic_cycles
@@ -141,6 +142,7 @@ static counter_mapping_t k_midgardMapping[] =
 	{ MALI_NAME_BLOCK_JM,						"GPU_ACTIVE", &default_read },		// gpu_cycles
 	{ MALI_NAME_BLOCK_JM,						"JS0_ACTIVE", &default_read },		// fragment_cycles
 	{ MALI_NAME_BLOCK_TILER,					"TILER_ACTIVE", &default_read },	// tiler_cycles
+	{ MALI_NAME_BLOCK_SHADER,					"FRAG_TRANS_ELIM", &default_read },	// frag_elim
 
 	{ MALI_NAME_BLOCK_SHADER,					"<none>", nullptr },		// shader_cycles
 	{ MALI_NAME_BLOCK_SHADER,					"<none>", nullptr },		// shader_arithmetic_cycles
