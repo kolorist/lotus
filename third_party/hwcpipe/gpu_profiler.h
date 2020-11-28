@@ -10,6 +10,7 @@ enum class gpu_counter_e
 	fragment_cycles,
 	tiler_cycles,
 	frag_elim,
+	tiles,
 
 	shader_cycles,
 	shader_arithmetic_cycles,
